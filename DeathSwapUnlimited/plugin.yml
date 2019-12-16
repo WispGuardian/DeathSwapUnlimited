@@ -1,0 +1,17 @@
+main: com.wispguardian.deathswapunlimited.Main
+name: DeathSwapUnlimited
+version: 1.0
+author: WispGuardian
+description: DeathSwap gamemode revamped and unlimited players!
+commands:
+    deathswap:
+       description: Enables the deathswap gamemode.
+       usage: /deathswap
+       permission: deathswap.toggle
+       permission-message: You don't have permission!
+    spectateondeath:
+       description: Enables spectator mode on death.
+       usage: spectateondeath
+       permission: deathswap.spectateondeath
+       permission-message: You don't have permission!
+       aliases: [specondeath, specdeath, spectatedeath, deathspec, deathspectate]
