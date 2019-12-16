@@ -8,6 +8,7 @@ To toggle switching to spectator upon dying (/specondeath), the player needs `de
 ### TO-DO
 `-` Upload to SpigotMC<br>
 `-` Make a config file for users to adjust certain settings.<br>
+`-` Technically there is a limit of 100 players right now from when I was testing the basics. I'll fix this hard limit when I get to fixing the bugs.
 
 ### Known Bugs
 (These are easy fixes and I will fix them when I get a chance)<br>
