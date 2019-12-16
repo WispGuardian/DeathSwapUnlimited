@@ -64,7 +64,6 @@ public class Main extends JavaPlugin implements Listener {
         			bossBars.get(i).bar.removeAll();
         		}
         		bossBars.clear();
-//        		scheduler.cancelTasks(this); // don't need because there's a check preswap that will stop everything from happening including queuing the next swap
         		scheduler.cancelTasks(this);
         		getServer().broadcastMessage(prefix + " DEATHSWAP GAME DEACTIVATED.");
         	}
