@@ -1,39 +1,42 @@
 package com.wispguardian.deathswapunlimited;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.block.BlockFace;
 import org.bukkit.boss.BarColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.EntityRegainHealthEvent;
-import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.player.PlayerRespawnEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
 
-public class Main extends JavaPlugin implements Listener {
+public class Main extends JavaPlugin {
 	
 	BukkitScheduler scheduler = getServer().getScheduler();
 	
-	boolean deathswapActive, specOnDeath, barsActive;
+	public static boolean deathswapActive, specOnDeath, barsActive;
+	public static Main instance;
 	long nextSwapTime = (long)(Math.random() * (150-30+1))+30;
-	ArrayList<PlayerBar> bossBars = new ArrayList<PlayerBar>();
+	public static ArrayList<PlayerBar> bossBars = new ArrayList<PlayerBar>();
 	
-	String prefix = ChatColor.GOLD + "" + ChatColor.BOLD + "[" + ChatColor.AQUA + "Death" + ChatColor.GRAY + "Swap" + ChatColor.GOLD + "" + ChatColor.BOLD + "]" + ChatColor.DARK_AQUA + "" + ChatColor.BOLD;
+	public final Material[] disabledBlocks = {
+		Material.WATER, Material.LILY_PAD, Material.KELP, Material.KELP_PLANT,
+		Material.SEA_PICKLE, Material.SEAGRASS, Material.LAVA
+	};
+	
+	public static String prefix = ChatColor.GOLD + "" + ChatColor.BOLD + "[" + ChatColor.AQUA + "Death" + ChatColor.GRAY + "Swap" + ChatColor.GOLD + "" + ChatColor.BOLD + "]" + ChatColor.DARK_AQUA + "" + ChatColor.BOLD;
 	
 	@Override
     public void onEnable() {
-		getServer().getPluginManager().registerEvents(this, this);
+		Main.instance = this;
+		getServer().getPluginManager().registerEvents(new EventListener(), this);
     }
 	
     @Override
@@ -58,13 +61,7 @@ public class Main extends JavaPlugin implements Listener {
         		randomTP();
 	        	nextSwap();
         	}else {
-        		deathswapActive = false;
-        		specOnDeath = false;
-        		for(int i = 0; i < bossBars.size(); i++) {
-        			bossBars.get(i).bar.removeAll();
-        		}
-        		bossBars.clear();
-        		scheduler.cancelTasks(this);
+        		Main.disableGame();
         		getServer().broadcastMessage(prefix + " DEATHSWAP GAME DEACTIVATED.");
         	}
 			return true;
@@ -81,32 +78,6 @@ public class Main extends JavaPlugin implements Listener {
         }
         
         return false;
-    }
-    
-    @EventHandler
-    public void onPlayerDeath(PlayerDeathEvent e) {
-    	// when player clicks respawn, they will remain in their location and be in spectator mode.
-    	if(specOnDeath) {
-    		final Player player = e.getEntity();
-    		player.setHealth(20);
-        	player.spigot().respawn();
-        	player.setGameMode(GameMode.SPECTATOR);
-    	}
-    }
-    
-    @EventHandler
-    public void onEntityDamage(EntityDamageEvent e) {
-    	if(e.getEntity() instanceof Player) {
-    		Player p = (Player)e.getEntity();
-    		updateBossBar(p, p.getHealth() - e.getDamage());
-    	}
-    }
-    @EventHandler
-    public void onEntityHealthRegain(EntityRegainHealthEvent e) {
-    	if(e.getEntity() instanceof Player) {
-    		Player p = (Player)e.getEntity();
-    		updateBossBar(p, p.getHealth() + e.getAmount());
-    	}
     }
     
     // for deathswap mode
@@ -137,6 +108,7 @@ public class Main extends JavaPlugin implements Listener {
 				if(!deathswapActive) return;
 				ArrayList<Player> participants = getPlayersInSurvival();
 				
+				// randomize order of participants arraylist
 				int num = participants.size();
 				ArrayList<Player> swappers = new ArrayList<Player>();
 				for(int i = 0; i < num; i++) {
@@ -163,13 +135,20 @@ public class Main extends JavaPlugin implements Listener {
     
     public void randomTP() {
     	ArrayList<Player> players = getPlayersInSurvival();
+    	ArrayList<Material> disabled_blocks = new ArrayList<>(Arrays.asList(disabledBlocks));
+    	World world = players.get(0).getWorld();
     	for(int i = 0; i < players.size(); i++) {
     		Player p = players.get(i);
-    		Location loc = p.getLocation();
-    		loc.setX((int)(Math.random()*(10000-1000+1)+1000));
-    		loc.setZ((int)(Math.random()*(10000-1000+1)+1000));
-    		loc.setY(loc.getWorld().getHighestBlockAt(loc).getY()+2);
+    		Location loc = null;
+    		while(loc == null || disabled_blocks.contains(loc.getBlock().getRelative(BlockFace.DOWN).getType())) {
+	    		loc = new Location(world, (int)(Math.random()*(10000-1000+1)+1000),
+	    				0,
+	    				(int)(Math.random()*(10000-1000+1)+1000));
+	    		loc.setY(world.getHighestBlockAt(loc).getY());
+    		}
+    		loc.setY(loc.getY()+1);
     		p.setInvulnerable(true);
+    		p.setHealth(p.getAttribute(Attribute.GENERIC_MAX_HEALTH).getDefaultValue());
     		p.teleport(loc);
     		p.getInventory().clear();
     		p.sendMessage(prefix + " You have been teleported to a random location.");
@@ -185,35 +164,38 @@ public class Main extends JavaPlugin implements Listener {
     	}
     }
     
-    public ArrayList<Player> getPlayersInSurvival() {
+    public static ArrayList<Player> getPlayersInSurvival() {
     	Player[] players = new Player[100];
-		getServer().getOnlinePlayers().toArray(players); // array of all online players
+    	Main.instance.getServer().getOnlinePlayers().toArray(players);			// array of online players
 		ArrayList<Player> participants = new ArrayList<Player>();				// arraylist will hold all online players that are in survival
-		for(int i = 0; i < players.length-1; i++) {
+		for(int i = 0; i < players.length; i++) {
 			if(players[i] == null) break;
-			if(players[i].getGameMode().equals(GameMode.SURVIVAL)) participants.add(players[i]); // put all survival mode players into arraylist
-		}
-		return participants;
-    }
-    
-    public ArrayList<Player> getOnlinePlayers() {
-    	Player[] players = new Player[100];
-		getServer().getOnlinePlayers().toArray(players); // array of all online players
-		ArrayList<Player> participants = new ArrayList<Player>();				// arraylist will hold all online players that are in survival
-		for(int i = 0; i < players.length-1; i++) {
-			if(players[i] == null) break;
-			participants.add(players[i]); // put all survival mode players into arraylist
-		}
-		return participants;
-    }
-    
-    public void updateBossBar(Player p, double hp) {
-    	for(int i = 0; i < bossBars.size(); i++) {
-			if(p.getUniqueId() == bossBars.get(i).player.getUniqueId()) {
-				bossBars.get(i).bar.setTitle(p.getName() + ": " + (int)hp + "\u2764");
-				bossBars.get(i).bar.setProgress(hp / p.getHealthScale());
+			if(players[i].getGameMode().equals(GameMode.SURVIVAL)) {
+				participants.add(players[i]); 									// put all survival mode players into arraylist
 			}
 		}
+		return participants;
+    }
+    
+    public static ArrayList<Player> getOnlinePlayers() {
+    	Player[] players = new Player[100];
+		Main.instance.getServer().getOnlinePlayers().toArray(players); 			// array of all online players
+		ArrayList<Player> participants = new ArrayList<Player>();				// arraylist will hold all online players that are in survival
+		for(int i = 0; i < players.length-1; i++) {
+			if(players[i] == null) break;
+			participants.add(players[i]);
+		}
+		return participants;
+    }
+    
+    public static void disableGame() {
+    	deathswapActive = false;
+		specOnDeath = false;
+		for(int i = 0; i < bossBars.size(); i++) {
+			bossBars.get(i).bar.removeAll();
+		}
+		bossBars.clear();
+		Main.instance.scheduler.cancelTasks(Main.instance);
     }
     
 }
